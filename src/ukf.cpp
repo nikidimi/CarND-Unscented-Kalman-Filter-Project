@@ -82,7 +82,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       x_ << x, y, 1, 0, 0;
     }
     else if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
-      x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 0, 0, 0;
+      x_ << meas_package.raw_measurements_[0], meas_package.raw_measurements_[1], 1, 0, 0;
     }
 
 
@@ -227,6 +227,8 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   x_ += K * (meas_package.raw_measurements_ - z_pred);
   
   P_ -= K * S * K.transpose(); 
+  
+  NIS_laser_ = z_diff.transpose() * S.inverse() * z_diff;
 }
 
 /**
@@ -304,4 +306,6 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   x_ += K * (meas_package.raw_measurements_ - z_pred);
   
   P_ -= K * S * K.transpose(); 
+  
+  NIS_radar_ = z_diff.transpose() * S.inverse() * z_diff;
 }
