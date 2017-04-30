@@ -106,9 +106,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     is_initialized_ = true;
     return;
   }
-  
-  
   double dt = (meas_package.timestamp_ - time_us_) / 1000000.0;
+  time_us_ = meas_package.timestamp_;
   
   Prediction(dt);
   
@@ -179,6 +178,10 @@ void UKF::Prediction(double delta_t) {
   P_.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {
     MatrixXd t = Xsig_pred_.col(i) - x_;
+    
+    while (t(3)> M_PI) t(3)-=2.*M_PI;
+    while (t(3)<-M_PI) t(3)+=2.*M_PI;
+    
     P_ += weights_(i) * t * t.transpose();
   }
   /**
@@ -208,7 +211,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
  * Updates the state and the state covariance matrix using a radar measurement.
  * @param {MeasurementPackage} meas_package
  */
-void UKF::UpdateRadar(MeasurementPackage meas_package) {
+void UKF::UpdateRadar(MeasurementPackage meas_package) { 
   int n_z = 3;
   
   MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
@@ -242,6 +245,10 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   S.fill(0.0);
   for(int i = 0; i < 2 * n_aug_ + 1; i++) {
     MatrixXd t = Zsig.col(i) - z_pred;
+    
+    while (t(1)> M_PI) t(1)-=2.*M_PI;
+    while (t(1)<-M_PI) t(1)+=2.*M_PI;
+    
     S += weights_(i) * t * t.transpose();
   }
   
@@ -250,6 +257,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
   MatrixXd Tc = MatrixXd(n_x_, n_z);
   
+
   Tc.fill(0.0);
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
@@ -263,12 +271,15 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
     
     Tc += weights_(i) * x_diff * z_diff.transpose();
-      
   }
   
   MatrixXd K = Tc * S.inverse();
   
+  VectorXd z_diff = meas_package.raw_measurements_ - z_pred;
+  while (z_diff(1)> M_PI) z_diff(1)-=2.*M_PI;
+  while (z_diff(1)<-M_PI) z_diff(1)+=2.*M_PI;
+
   x_ += K * (meas_package.raw_measurements_ - z_pred);
   
-  P_ -= K * S * K.transpose();
+  P_ -= K * S * K.transpose(); 
 }
