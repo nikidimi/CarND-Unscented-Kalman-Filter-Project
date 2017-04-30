@@ -44,14 +44,6 @@ UKF::UKF() {
 
   // Radar measurement noise standard deviation radius change in m/s
   std_radrd_ = 0.3;
-
-  /**
-  TODO:
-
-  Complete the initialization. See ukf.h for other member properties.
-
-  Hint: one or more values initialized above might be wildly off...
-  */
   
   is_initialized_ = false;
  
@@ -68,7 +60,11 @@ UKF::UKF() {
     weights_(i) = 1/(2 * (lambda_ + n_aug_)) ;
   }
   
-  P_.fill(0.1);
+  P_ <<  1, 0, 0, 0, 0,
+         0, 1, 0, 0, 0,
+         0, 0, 10, 0, 0,
+         0, 0, 0, 10, 0,
+         0, 0, 0, 0, 10;
 }
 
 UKF::~UKF() {}
@@ -78,16 +74,6 @@ UKF::~UKF() {}
  * either radar or laser.
  */
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
-  /**
-  TODO:
-
-  Complete this function! Make sure you switch between lidar and radar
-  measurements.
-  */
-  
-  if (meas_package.sensor_type_ != MeasurementPackage::RADAR) {
-    return;
-  }
   if (!is_initialized_) {
 
     if (meas_package.sensor_type_ == MeasurementPackage::RADAR) {
@@ -184,12 +170,6 @@ void UKF::Prediction(double delta_t) {
     
     P_ += weights_(i) * t * t.transpose();
   }
-  /**
-  TODO:
-
-  Complete this function! Estimate the object's location. Modify the state
-  vector, x_. Predict sigma points, the state, and the state covariance matrix.
-  */
 }
 
 /**
@@ -197,14 +177,56 @@ void UKF::Prediction(double delta_t) {
  * @param {MeasurementPackage} meas_package
  */
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
-  /**
-  TODO:
+  int n_z = 2;
+  
+  MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
+  
+  for(int i = 0; i < 2 * n_aug_ + 1; i++) {
+    Zsig(0, i) = Xsig_pred_(0, i);
+    Zsig(1, i) = Xsig_pred_(1, i);
+  }
+  
+  VectorXd z_pred = VectorXd(n_z);
+  z_pred.fill(0.0);
+  for(int i = 0; i < 2 * n_aug_ + 1; i++) {
+    z_pred += weights_(i) * Zsig.col(i);
+  }
+  
+  MatrixXd R = MatrixXd(2, 2);
+  R.fill(0.0);
+  R(0, 0) = std_laspx_ * std_laspx_;
+  R(1, 1) = std_laspy_ * std_laspy_;
+  
+  MatrixXd S = MatrixXd(n_z, n_z);
+  S.fill(0.0);
+  for(int i = 0; i < 2 * n_aug_ + 1; i++) {
+    MatrixXd t = Zsig.col(i) - z_pred;
+    S += weights_(i) * t * t.transpose();
+  }
+  
+  S += R;
+  
 
-  Complete this function! Use lidar data to update the belief about the object's
-  position. Modify the state vector, x_, and covariance, P_.
+  MatrixXd Tc = MatrixXd(n_x_, n_z);
+  
 
-  You'll also need to calculate the lidar NIS.
-  */
+  Tc.fill(0.0);
+  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
+    VectorXd x_diff = Xsig_pred_.col(i) - x_;
+    
+    while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
+    while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
+    
+    VectorXd z_diff = Zsig.col(i) - z_pred;    
+    Tc += weights_(i) * x_diff * z_diff.transpose();
+  }
+  
+  MatrixXd K = Tc * S.inverse();
+  
+  VectorXd z_diff = meas_package.raw_measurements_ - z_pred;
+  x_ += K * (meas_package.raw_measurements_ - z_pred);
+  
+  P_ -= K * S * K.transpose(); 
 }
 
 /**
